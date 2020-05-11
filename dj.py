@@ -1,116 +1,90 @@
 import itertools
 import numpy as np
+import random
 import pyquil.api as api
-from pyquil.gates import *
-from pyquil.quil import Program
+from pyquil.gates import X, H
+from pyquil import Program, get_qc
 
+# Generate the qubit string from 0 to 2^n with leading zeros
+def get_qstring(n):
+    return [format(q, '0'+ str(n) + 'b') for q in range(0, 2**n)]
 
-def qubit_strings(n):
-    qubit_strings = []
-    for q in itertools.product(['0', '1'], repeat=n):
-        qubit_strings.append(''.join(q))
-    return qubit_strings
+# Generate the bit mapping between inputs and output
+def gen_mapping(n, isBalance):
+    qstr = get_qstring(n)
+    # If the function is constant, assign either 1 or 0.
+    if not isBalance:
+        const = np.random.choice([0, 1])
+        bb_map = {q: const for q in qstr}
+    else:
+    # The function is balanced, randomly pick
+        half = np.random.choice(qstr, size=2**(n-1), replace=False)
+        bb_map = {q_l : 0 for q_l in qstr}
+        bb_map.update({q_r : 1 for q_r in half})
+    return bb_map
 
-
-def black_box_map(n, balanced):
+# Generate Uf
+def gen_Uf(n, isBalance):
     """
-    Black-box map, f(x), on n qubits represented by the vector x
+    generate the unitary matrix of the black-box operator on (n+1)-qubits
+    bit string -> 1, f(x) add b % 2 will flip, where matrix is 
+         [[0, 1]
+          [1, 0]]
+    bit string -> 0, f(x) add b % 2 remain same, where matrix is
+         [[1, 0]
+          [0, 1]]    
     """
-    qubs = qubit_strings(n)
-
-    # assign a constant value to all inputs if not balanced
-    if not balanced:
-        const_value = np.random.choice([0, 1])
-        d_blackbox = {q: const_value for q in qubs}
-
-    # assign 0 to half the inputs, and 1 to the other inputs if balanced
-    if balanced:
-        # randomly pick half the inputs
-        half_inputs = np.random.choice(qubs, size=int(len(qubs)/2), replace=False)
-        d_blackbox = {q_half: 0 for q_half in half_inputs}
-        d_blackbox_other_half = {q_other_half: 1 for q_other_half in set(qubs) - set(half_inputs)}
-        d_blackbox.update(d_blackbox_other_half)
-    
-    return d_blackbox
-
-def qubit_ket(qub_string):
-    """
-    Form a basis ket out of n-bit string specified by the input 'qub_string', e.g.
-    '001' -> |001>
-    """
-    e0 = np.array([[1], [0]])
-    e1 = np.array([[0], [1]])
-    d_qubstring = {'0': e0, '1': e1}
-
-    # initialize ket
-    ket = d_qubstring[qub_string[0]]
-    for i in range(1, len(qub_string)):
-        ket = np.kron(ket, d_qubstring[qub_string[i]])
-    
-    return ket
-
-def projection_op(qub_string):
-    """
-    Creates a projection operator out of the basis element specified by 'qub_string', e.g.
-    '101' -> |101> <101|
-    """
-    ket = qubit_ket(qub_string)
-    bra = np.transpose(ket)  # all entries real, so no complex conjugation necessary
-    proj = np.kron(ket, bra)
-    return proj
-
-def black_box(n, balanced):
-    """
-    Unitary representation of the black-box operator on (n+1)-qubits
-    """
-    d_bb = black_box_map(n, balanced=balanced)
-    # initialize unitary matrix
+    mapping = gen_mapping(n, isBalance=isBalance)
     N = 2**(n+1)
-    unitary_rep = np.zeros(shape=(N, N))
-    # populate unitary matrix
-    for k, v in d_bb.items():
-        unitary_rep += np.kron(projection_op(k), np.eye(2) + v*(-np.eye(2) + np.array([[0, 1], [1, 0]])))
-        
-    return unitary_rep
-
-p = Program()
+    Uf = np.zeros(shape=(N, N))
+    for k, v in mapping.items():
+        idx = int(k, 2) * 2
+        if v:
+            Uf[idx + 1][idx] = 1
+            Uf[idx][idx + 1] = 1
+        else:
+            Uf[idx][idx] = 1
+            Uf[idx + 1][idx + 1] = 1
+    return Uf
 
 # pick number of control qubits to be used
-n = 5
+n = 4
+
+# Define the Quantum Computer and set the time output
+qc = get_qc(str(n+1)+"q-qvm")
+qc.compiler.client.timeout = 1000
+
+# Define the program
+p = Program()
 
 # Define U_f
-p.defgate("U_f", black_box(n, balanced=False))
+p.defgate("U_f", gen_Uf(n, isBalance=True))
 
-# Prepare the starting state |0>^(\otimes n) x (1/sqrt[2])*(|0> - |1>)
-for n_ in range(1, n+1):
-    p.inst(I(n_))
+# Set the helper bit to |->
 p.inst(X(0))
 p.inst(H(0))
 
-# Apply H^(\otimes n)
+# Apply H to the rest of bits
 for n_ in range(1, n+1):
     p.inst(H(n_))
 
-# Apply U_f
-p.inst(("U_f",) + tuple(range(n+1)[::-1]))
+# Apply U_f to bit n+1 -> 1, bit 0 is the helper bit
+inst = ("U_f",) + tuple(range(n+1)[::-1])
+p.inst(inst)
 
-# Apply final H^(\otimes n)
+# Apply final H to the rest of bits
 for n_ in range(1, n+1):
     p.inst(H(n_))
 
-# Final measurement
-classical_regs = list(range(n))
-for i, n_ in enumerate(list(range(1, n+1))[::-1]):
-    p.measure(n_, classical_regs[i])
-
-qvm = api.QVMConnection()
-measure_n_qubits = qvm.run(p, classical_regs)
-
-# flatten out list
-measure_n_qubits = [item for sublist in measure_n_qubits for item in sublist]
-
-# Determine if function is balanced or not
-if set(measure_n_qubits) == set([0, 1]):
-    print ("Function is balanced")
-elif set(measure_n_qubits) == set([0]):
-    print ("Function is constant")
+# Run and Measure the Quantum Computer
+results = qc.run_and_measure(p, trials=5)
+print(results)
+# Measure all bits
+del results[0]
+sum_bits = 0
+for k, v in results.items():
+    sum_bits += sum(v)
+if not sum_bits:
+    print("Function is Constant")
+else:
+    print("Function is Balanced")
