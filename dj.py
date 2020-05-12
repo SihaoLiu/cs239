@@ -58,7 +58,9 @@ qc.compiler.client.timeout = 1000
 p = Program()
 
 # Define U_f
-p.defgate("U_f", gen_Uf(n, isBalance=True))
+isBalance = bool(random.getrandbits(1))
+p.defgate("U_f", gen_Uf(n, isBalance=isBalance))
+print('The function is balance ? ' + str(isBalance))
 
 # Set the helper bit to |->
 p.inst(X(0))
@@ -77,14 +79,14 @@ for n_ in range(1, n+1):
     p.inst(H(n_))
 
 # Run and Measure the Quantum Computer
+print(to_latex(p))
 results = qc.run_and_measure(p, trials=5)
-print(results)
 # Measure all bits
 del results[0]
 sum_bits = 0
 for k, v in results.items():
     sum_bits += sum(v)
 if not sum_bits:
-    print("Function is Constant")
+    print("The function is Constant")
 else:
-    print("Function is Balanced")
+    print("The function is Balanced")
