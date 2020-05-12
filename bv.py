@@ -1,7 +1,7 @@
 import itertools
 import numpy as np
 import pyquil.api as api
-from pyquil.gates import *
+from pyquil.gates import X, H
 from pyquil import Program, get_qc
 
 # Generate the qubit string from 0 to 2^n with leading zeros
