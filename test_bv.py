@@ -1,7 +1,7 @@
 from bv import BernsteinVaziraniSolver
 from dj import DeutschJozsaSolver
 import time
-n = 6
+n = 5
 
 def f(x, a_str, b_str, nbits):
     a = int(a_str, 2)
@@ -10,17 +10,35 @@ def f(x, a_str, b_str, nbits):
     return (ax + b) % 2
 
 def f_1(x):
-    return f(x, '110010', '1', n)
-
-def f_2(x):
-    return f(x, '101100', '0', n)
+    return 1#f(x, '00000', '1', n)
 
 start_time = time.time()
 a, b = BernsteinVaziraniSolver(n,f_1).run(1,isQC = True)
 print("--- %s seconds ---" % (time.time() - start_time))
 print(f"f_1 = {a} * x + {b}")
 
+"""
+
+def f_3(x):
+    if x < 16:
+        return 1
+    else:
+        return 0
+
+def f_4(x):
+    if x < 17 and x >= 1:
+        return 1
+    else:
+        return 0
+
+def f_5(x):
+    if x < 32 and x > 16:
+        return 1
+    else:
+        return 0
+
 start_time = time.time()
-isconst = DeutschJozsaSolver(n,f_2).run(1,isQC = True)
+isconst = DeutschJozsaSolver(n,f_5).run(1,isQC = True)
 print("--- %s seconds ---" % (time.time() - start_time))
 print(f"f_2 is Constant? {bool(isconst)}")
+"""
