@@ -1,5 +1,4 @@
 # importing necessary package
-import matplotlib as plt
 import numpy as np
 import math
 from qiskit import QuantumCircuit, execute, Aer
@@ -56,8 +55,8 @@ class DeutschJozsaSolver(object):
 
         # measure the qubits
         p.measure(range(1, self.__num_qubits + 1), range(self.__num_qubits))
-        print(p.draw())
-        print(p.draw(output="latex_source"))
+        #print(p.draw())
+        #print(p.draw(output="latex_source"))
         self.__circuit = p
 
     def run(self, trials):
@@ -66,12 +65,16 @@ class DeutschJozsaSolver(object):
         result = job.result().get_counts()
         most_common = [k for k, v in sorted(result.items(), key=lambda item: item[1])][-1]
         if int(most_common) == 0:
-            return False
+            return False # Const
         else:
-            return True
+            return True # Balanced
 
-def f_balanced_5(x):
-    if x < 32:
+# ------------------------- Test case -------------------------
+
+n = 10
+
+def f_balanced(x):
+    if x >= 2**(n-1):
         return 1
     else:
         return 0
@@ -79,10 +82,20 @@ def f_balanced_5(x):
 def f_const(x):
     return 1
 
-dj_solver = DeutschJozsaSolver(6, f_const)
+import time
+
+# Set the start time
+start_time = time.time()
+# Initialize the DJ solver and run with 1000 trials
+dj_solver = DeutschJozsaSolver(n, f_balanced)
 result = ""
 if dj_solver.run(1000):
     result = "Balanced"
 else:
     result = "Const"
+# Calculate the execution time
+print("--- %s seconds ---" % (time.time() - start_time))
 print(f"function is {result}")
+
+#isbalanced = DeutschJozsaSolver(n,f_balanced).run(1000)
+#print(f"f_2 is Balanced? {bool(isbalanced)}")

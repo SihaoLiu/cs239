@@ -56,8 +56,8 @@ class BernsteinVaziraniSolver(object):
 
         # measure the qubits
         p.measure(range(1, self.__num_qubits + 1), range(self.__num_qubits))
-        print(p.draw())
-        print(p.draw(output="latex_source"))
+        #print(p.draw())
+        #print(p.draw(output="latex_source"))
         self.__circuit = p
 
     def run(self, trials):
@@ -67,7 +67,9 @@ class BernsteinVaziraniSolver(object):
         most_common = [k for k, v in sorted(result.items(), key=lambda item: item[1])][-1]
         return most_common, self.__b
 
-n = 6
+# ------------------------- Test case -------------------------
+
+n = 10
 
 def f(x, a_str, b_str, nbits):
     a = int(a_str, 2)
@@ -76,7 +78,16 @@ def f(x, a_str, b_str, nbits):
     return (ax + b) % 2
 
 def f_1(x):
-    return f(x, '110101', '1', n)
+    return f(x, '0000000011', '1', n)
 
+import time
+# Set the start time
+start_time = time.time()
+# Initialize the DJ solver and run with 1000 trials
 a, b = BernsteinVaziraniSolver(n,f_1).run(1000)
+# Calculate the execution time
+print("--- %s seconds ---" % (time.time() - start_time))
 print(f"function = {a} * x + {b}")
+
+#a, b = BernsteinVaziraniSolver(n,f_1).run(1000)
+#print(f"f_1 = {a} * x + {b}")
