@@ -1,0 +1,34 @@
+% \documentclass[preview]{standalone}
+% If the image is too large to fit on this documentclass use
+\documentclass[draft]{beamer}
+% img_width = 13, img_depth = 12
+\usepackage[size=custom,height=19,width=174,scale=0.7]{beamerposter}
+% instead and customize the height and width (in cm) to fit.
+% Large images may run out of memory quickly.
+% To fix this use the LuaLaTeX compiler, which dynamically
+% allocates memory.
+\usepackage[braket, qm]{qcircuit}
+\usepackage{amsmath}
+\pdfmapfile{+sansmathaccent.map}
+% \usepackage[landscape]{geometry}
+% Comment out the above line if using the beamer documentclass.
+\begin{document}
+\begin{equation*}
+    \Qcircuit @C=1.0em @R=0.0em @!R {
+                \lstick{ {q}_{0} :  } & \gate{X} & \gate{H} & \multigate{6}{unitary} & \qw & \qw & \qw & \qw & \qw & \qw & \qw & \qw & \qw\\
+                \lstick{ {q}_{1} :  } & \gate{H} & \qw & \ghost{unitary} & \gate{H} & \meter & \qw & \qw & \qw & \qw & \qw & \qw & \qw\\
+                \lstick{ {q}_{2} :  } & \gate{H} & \qw & \ghost{unitary} & \gate{H} & \qw & \meter & \qw & \qw & \qw & \qw & \qw & \qw\\
+                \lstick{ {q}_{3} :  } & \gate{H} & \qw & \ghost{unitary} & \gate{H} & \qw & \qw & \meter & \qw & \qw & \qw & \qw & \qw\\
+                \lstick{ {q}_{4} :  } & \gate{H} & \qw & \ghost{unitary} & \gate{H} & \qw & \qw & \qw & \meter & \qw & \qw & \qw & \qw\\
+                \lstick{ {q}_{5} :  } & \gate{H} & \qw & \ghost{unitary} & \gate{H} & \qw & \qw & \qw & \qw & \meter & \qw & \qw & \qw\\
+                \lstick{ {q}_{6} :  } & \gate{H} & \qw & \ghost{unitary} & \gate{H} & \qw & \qw & \qw & \qw & \qw & \meter & \qw & \qw\\
+                \lstick{c_{0}: } & \cw & \cw & \cw & \cw & \cw \cwx[-6] & \cw & \cw & \cw & \cw & \cw & \cw & \cw\\
+                \lstick{c_{1}: } & \cw & \cw & \cw & \cw & \cw & \cw \cwx[-6] & \cw & \cw & \cw & \cw & \cw & \cw\\
+                \lstick{c_{2}: } & \cw & \cw & \cw & \cw & \cw & \cw & \cw \cwx[-6] & \cw & \cw & \cw & \cw & \cw\\
+                \lstick{c_{3}: } & \cw & \cw & \cw & \cw & \cw & \cw & \cw & \cw \cwx[-6] & \cw & \cw & \cw & \cw\\
+                \lstick{c_{4}: } & \cw & \cw & \cw & \cw & \cw & \cw & \cw & \cw & \cw \cwx[-6] & \cw & \cw & \cw\\
+                \lstick{c_{5}: } & \cw & \cw & \cw & \cw & \cw & \cw & \cw & \cw & \cw & \cw \cwx[-6] & \cw & \cw\\
+         }
+\end{equation*}
+
+\end{document}
