@@ -14,11 +14,12 @@ import random
 def get_qstring(n):
     return [format(q, '0'+ str(n) + 'b') for q in range(0, 2**n)]
 
-class DeutschJozsaSolver(object): 
+class BernsteinVaziraniSolver(object): 
     # Constructor
     def __init__(self, num_qubits, f):
         self.__num_qubits = num_qubits
         self.__f = f
+        self.__b = f(0)
         self.__compute_matrices()
         self.__build_circuit()
 
@@ -71,7 +72,7 @@ class DeutschJozsaSolver(object):
         IBMQ.save_account('1388dc1e10847ac5041cf9fcad4cf44f8390163c0840e3dc5a1733622d3a3c413893a61e7d12b31611d810bf2aa318bc713dc929d4ef1f61954021f1346a8934',overwrite=True)
         IBMQ.load_account()
         provider = IBMQ.get_provider(hub='ibm-q')
-        backend = least_busy(provider.backends(filters=lambda x: x.configuration().n_qubits >= (self.__num_qubits+1) and
+        backend = least_busy(provider.backends(filters=lambda x: x.configuration().n_qubits >= (n+1) and
                                    not x.configuration().simulator and x.status().operational==True))
         print("Now using least busy backend: ", backend)
         job = execute(self.__circuit, backend=backend, shots=trials, optimization_level=3)
@@ -82,10 +83,7 @@ class DeutschJozsaSolver(object):
         real_most_common = [k for k, v in sorted(real_result.items(), key=lambda item: item[1])][-1]
         print('real result count:')
         print(real_result)
-        if int(real_most_common) == 0:
-            print(f"Real: Function is Constant Function")
-        else:
-            print(f"Real: Function is Balanced Function")
+        print(f"real device: function = {real_most_common} * x + {self.__b}")
         #------ Simulator
         simulator = Aer.get_backend("qasm_simulator")
         start_time = time.time()
@@ -95,40 +93,34 @@ class DeutschJozsaSolver(object):
         print('simulator result count:')
         print(sim_result)
         sim_most_common = [k for k, v in sorted(sim_result.items(), key=lambda item: item[1])][-1]
-        if int(sim_most_common) == 0:
-            print(f"Simulator: Function is Constant Function")
-            return False # Const
-        else:
-            print(f"Simulator: Function is Balanced Function")
-            return True # Balanced
+        print(f"simulator: function = {sim_most_common} * x + {self.__b}")
+        return sim_most_common, self.__b
 
 # ------------------------- Test case -------------------------
 """
 n = 4
-
-def f_balanced(x):
-    if x >= 2**(n-1):
-        return 1
-    else:
-        return 0
-
-def f_const(x):
-    return 1
-
+a_str = '1101'
+b_str = '1'
 print(f"Number of Q bits is {n}")
+print(f"expected: function = {a_str} * x + {b_str}")
+
+def f(x, a_str, b_str, nbits):
+    a = int(a_str, 2)
+    b = int(b_str, 2)
+    ax = format((x & a), '0'+str(nbits)+'b').count('1') % 2
+    return (ax + b) % 2
+
+def f_1(x):
+    return f(x, a_str, b_str, n)
 
 # Initialize the DJ solver and run with 1000 trials
-dj_solver = DeutschJozsaSolver(n, f_const)
-result = ""
-if dj_solver.run(8192):
-    result = "Balanced"
-else:
-    result = "Const"
-print(f"Function is {result}")
+a, b = BernsteinVaziraniSolver(n,f_1).run(8192)
+# Calculate the execution time
+print(f"function = {a} * x + {b}")
 """
 # ------------------------ Evaluation ------------------------
 
-class DeutschJozsaEvaluator(object): 
+class BernsteinVaziraniEvaluator(object): 
     # Constructor
     def __init__(self, num_qubits):
         self.__num_qubits = num_qubits
@@ -136,14 +128,16 @@ class DeutschJozsaEvaluator(object):
         # Gate Counts
         self.__num_h_gate = 0
         self.__num_x_gate = 0
+        self.__num_i_gate = 0
         self.__num_cnot_gate = 0
         self.__num_total_gate = 0
         
     
-    def __build_circuit(self, is_balanced = 1, revert_scenario_idx = 0, cnot_scenario_idx = 1, const_out = 0):
+    def __build_circuit(self, a_scenario_idx = 0):
         p = QuantumCircuit(self.__num_qubits+1, self.__num_qubits)
         self.__num_h_gate = 0
         self.__num_x_gate = 0
+        self.__num_i_gate = 0
         self.__num_cnot_gate = 0
         
         # Apply H Gates to the first N qubits
@@ -155,39 +149,16 @@ class DeutschJozsaEvaluator(object):
         p.x(self.__num_qubits); self.__num_x_gate += 1
         p.h(self.__num_qubits); self.__num_h_gate += 1
         
-        # Generating Oracle
-        oracle = QuantumCircuit(self.__num_qubits+1)
-
-        if is_balanced == 1:
-            # Get String for Oracle
-            r_str = format(revert_scenario_idx, f'0{self.__num_qubits}b')
-            cn_str = format(cnot_scenario_idx, f'0{self.__num_qubits}b')
-            assert '1' in cn_str # there needs to be as least one CNOT gate in balanced function
-        
-            # Place X-gates (revert)
-            for q_idx in range(len(r_str)):
-                if r_str[q_idx] == '1':
-                    oracle.x(q_idx)
-                    self.__num_x_gate += 1
-
-            # Controlled-NOT gates
-            for q_idx in range(len(cn_str)):
-                if cn_str[q_idx] == '1':
-                    oracle.cx(q_idx, self.__num_qubits)
-                    self.__num_cnot_gate += 1
-            
-            # Place X-gates (revert back)
-            for q_idx in range(len(r_str)):
-                if r_str[q_idx] == '1':
-                    oracle.x(q_idx)
-                    self.__num_x_gate += 1
-        else:
-            if const_out == 1:
-                oracle.x(self.__num_qubits)
-                self.__num_x_gate += 1
-
-        # Apply the Oracle
-        p += oracle
+        # Get the A String for Oracle
+        a_str = format(a_scenario_idx, f'0{self.__num_qubits}b')
+    
+        # Apply the inner-product oracle
+        a_str = a_str[::-1] # reverse a to fit qiskit's qubit ordering
+        for q_idx in range(self.__num_qubits):
+            if a_str[q_idx] == '0':
+                p.i(q_idx); self.__num_i_gate += 1
+            else:
+                p.cx(q_idx, self.__num_qubits); self.__num_cnot_gate += 1
 
         # Apply H gate again to the first N qubits
         for q_idx in range(self.__num_qubits):
@@ -195,7 +166,7 @@ class DeutschJozsaEvaluator(object):
             self.__num_h_gate += 1
         
         # Count the number of total gate
-        self.__num_total_gate = self.__num_h_gate + self.__num_cnot_gate + self.__num_x_gate
+        self.__num_total_gate = self.__num_h_gate + self.__num_cnot_gate + self.__num_x_gate + self.__num_i_gate
         
         # measure the qubits
         p.measure(range(self.__num_qubits), range(self.__num_qubits))
@@ -238,26 +209,17 @@ class DeutschJozsaEvaluator(object):
 
 
     def eval(self, trials):
-        for is_balanced in [1, 0]:
-            if is_balanced == 1:
-                r_list = list(range(0, self.__num_scenario));random.shuffle(r_list); r_list = r_list[0:min(3, self.__num_scenario)]
-                for r_scenario_idx in r_list:
-                    cn_list = list(range(1, self.__num_scenario)); random.shuffle(cn_list); cn_list = cn_list[0:min(3, self.__num_scenario - 1)]
-                    for cn_scenario_idx in cn_list:
-                        self.__build_circuit(is_balanced=is_balanced, revert_scenario_idx=r_scenario_idx, cnot_scenario_idx=cn_scenario_idx)
-                        real_time, sim_time, real_most_common, sim_most_common, backend = self.run(trials)
-                        print(f'{self.__num_qubits}, {is_balanced}, {self.__num_x_gate}, {self.__num_h_gate}, {self.__num_cnot_gate}, {self.__num_total_gate}, {real_time}, {sim_time}, {real_most_common}, {sim_most_common}, {backend}, {trials}')
-            else:
-                for const_out in range(2):
-                    self.__build_circuit(is_balanced=is_balanced, const_out=const_out)
-                    real_time, sim_time, real_most_common, sim_most_common, backend = self.run(trials)
-                    print(f'{self.__num_qubits}, {is_balanced}, {self.__num_x_gate}, {self.__num_h_gate}, {self.__num_cnot_gate}, {self.__num_total_gate}, {real_time}, {sim_time}, {real_most_common}, {sim_most_common}, {backend}, {trials}')
+        a_list = list(range(0, self.__num_scenario));random.shuffle(a_list); a_list = a_list[0:min(10, self.__num_scenario)]
+        for a_scenario_idx in a_list:
+            a_str = format(a_scenario_idx, f'0{self.__num_qubits}b')
+            self.__build_circuit(a_scenario_idx=a_scenario_idx)
+            real_time, sim_time, real_most_common, sim_most_common, backend = self.run(trials)
+            print(f'{self.__num_qubits}, {self.__num_x_gate}, {self.__num_h_gate}, {self.__num_i_gate}, {self.__num_cnot_gate}, {self.__num_total_gate}, {real_time}, {sim_time}, {a_str}, {real_most_common}, {sim_most_common}, {backend}, {trials}')
 
-IBMQ.save_account('1388dc1e10847ac5041cf9fcad4cf44f8390163c0840e3dc5a1733622d3a3c413893a61e7d12b31611d810bf2aa318bc713dc929d4ef1f61954021f1346a8934',overwrite=True)
 IBMQ.load_account()
-print('num_qubits, function_type, num_x_gate, num_h_gate, num_cnot_gate, num_total_gate, real_time, sim_time, real_result, sim_result, backand_name, trials')
+print('num_qubits, num_x_gate, num_h_gate, num_i_gate, num_cnot_gate, num_total_gate, real_time, sim_time, answer, real_result, sim_result, backand_name, trials')
 for num_qubit in reversed(range(1, 15)):
-    dj_eval = DeutschJozsaEvaluator(num_qubit)
+    bv_eval = BernsteinVaziraniEvaluator(num_qubit)
     trials = min(8192, 2 ** (num_qubit + 3))
     trials = max(1024, trials)
-    dj_eval.eval(trials)
+    bv_eval.eval(trials)
